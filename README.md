@@ -1,3 +1,5 @@
+The project proposal is available in the `products` folder.  
+
 # Overview
 
 A template file and folder structure for a data analysis project/paper done with R/Rmarkdown/Github. 
