@@ -1,0 +1,27 @@
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=utf-8"/><title>Unknown </title></head><body>
+<h1 id="overview">Overview</h1>
+<p>A template file and folder structure for a data analysis project/paper done with R/Rmarkdown/Github. </p>
+<h1 id="pre-requisites">Pre-requisites</h1>
+<p>This is a template for a data analysis project using R, Rmarkdown (and variants, e.g. bookdown), Github and a reference manager that can handle bibtex. It is also assumed that you have a word processor installed (e.g. MS Word or <a href="https://www.libreoffice.org/">LibreOffice</a>). You need that software stack to make use of this template.</p>
+<h1 id="template-structure">Template structure</h1>
+<ul>
+<li>All data goes into the subfolders inside the <code>data</code> folder.</li>
+<li>All code goes into the <code>code</code> folder or subfolders.</li>
+<li>All results (figures, tables, computed values) go into <code>results</code> folder or subfolders.</li>
+<li>All products (manuscripts, supplement, presentation slides, web apps, etc.) go into <code>products</code> subfolders.</li>
+<li>See the various <code>readme.md</code> files in those folders for some more information.</li>
+</ul>
+<h1 id="template-content">Template content</h1>
+<p>The template comes with a few files that are meant as illustrative examples of the kinds of content you would place in the different folders. </p>
+<ul>
+<li>There is a simple, made-up dataset in the <code>raw_data</code> folder. </li>
+<li>The <code>processing_code</code> folder contains a single R script which loads the raw data, performs a bit of cleaning, and saves the result in the <code>processed_data</code> folder.</li>
+<li>The <code>analysis_code</code> folder contains an R script which loads the processed data, fits a simple model, and produces a figure and some numeric output, which is saved in the <code>results</code> folder.</li>
+<li>The <code>products</code> folder contains an example <code>bibtex</code> and CSL style file for references. Those files are used by the example manuscript, poster and slides.</li>
+<li>The <code>poster</code> and <code>slides</code> folders contain very basic examples of posters and slides made with R Markdown. Note that especially for slides, there are many different formats. You might find a different format more suitable. Check the R Markdown documentation. </li>
+<li>The  <code>manuscript</code> folder contains a template for a report written in Rmarkdown (bookdown, to be precise). If you access this repository as part of <a href="https://andreashandel.github.io/MADAcourse/">my Modern Applied Data Science course</a>, the sections are guides for your project. If you found your way to this repository outside the course, you might only be interested in seeing how the file pulls in results and references and generates a word document as output, without paying attention to the detailed structure.</li>
+</ul>
+<h1 id="getting-started">Getting started</h1>
+<p>This is a Github template repository. The best way to get it and start using it is <a href="https://help.github.com/en/articles/creating-a-repository-from-a-template">by following these steps.</a></p>
+<p>Once you got the repository, you can check out the examples by executing them in order. First run the cleaning script, which will produce the processed data. Then run the analysis script, which will take the processed data and produce some results. Then you can run the manuscript, poster and slides example files in any order. Those files pull in the generated results and display them. These files also pull in references from the <code>bibtex</code> file and format them according to the CSL style.</p>
+</body></html>

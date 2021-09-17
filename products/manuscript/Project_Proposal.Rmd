@@ -43,10 +43,6 @@ Advanced machine learning algorithms such as support vector machines or neural n
 However, we hypothesize that this relationship is causal, so prediction algorithms may not be the best fit here. While advanced causal analyses are potentially outside the scope of this analysis, we propose to use generalized linear mixed-effects models (GLMMs), potentially in a Bayesian framework, in order to gain insight about effects on influenza vaccine response.
 
 
-
-Note that this cited reference will show up at the end of the document, the reference formatting is determined by the CSL file specified in the YAML header. Many more style files for almost any journal [are available](https://www.zotero.org/styles). You also specify the location of your bibtex reference file in the YAML. You can call your reference file anything you like, I just used the generic word `references.bib` but giving it a more descriptive name is probably better.
-
-
 # References
 
 
