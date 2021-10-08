@@ -65,7 +65,7 @@ summarytable %>%
 		path = summarytable_file
 	)
 
-# Bivariate analysis
+# Bivariate analysis, still in working progress
 ## association of variables:p values
 # only show p value <0.1
 
