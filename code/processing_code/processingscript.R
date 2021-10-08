@@ -1,66 +1,88 @@
 ###############################
 # processing script
-#
-#this script loads the raw data, processes and cleans it 
+###############################
+
+#this script loads the cleaned data from the CIVIC repo, cleans it with additional steps
 #and saves it as Rds file in the processed_data folder
 
-#load needed packages. make sure they are installed.
-library(readxl) #for loading Excel files
-library(dplyr) #for data processing
-library(here) #to set paths
+#load required packages
+library(here) #for data loading/saving
+library(tidyverse) # for data wrangling
+library(lubridate) # working with date and time data 
 
-#path to data
-#note the use of the here() package and not absolute paths
-data_location <- here::here("data","raw_data","exampledata.xlsx")
-
-#load data. 
-#note that for functions that come from specific packages (instead of base R)
-# I often specify both package and function like so
-#package::function() that's not required one could just call the function
-#specifying the package makes it clearer where the function "lives",
-#but it adds typing. You can do it either way.
-rawdata <- readxl::read_excel(data_location)
-
-#take a look at the data
-dplyr::glimpse(rawdata)
-
-#dataset is so small, we can print it to the screen.
-#that is often not possible.
-print(rawdata)
-
-# looks like we have measurements for height (in centimeters) and weight (in kilogram)
-
-# there are some problems with the data: 
-# There is an entry which says "sixty" instead of a number. 
-# Does that mean it should be a numeric 60? It somehow doesn't make
-# sense since the weight is 60kg, which can't happen for a 60cm person (a baby)
-# Since we don't know how to fix this, we need to remove the person.
-# This "sixty" entry also turned all Height entries into characters instead of numeric.
-# We need to fix that too.
-# Then there is one person with a height of 6. 
-# that could be a typo, or someone mistakenly entered their height in feet.
-# Since we unfortunately don't know, we'll have to remove this person.
-# similarly, there is a person with weight of 7000, which is impossible,
-# and one person with missing weight.
-# to be able to analyze the data, we'll remove those 5 individuals
-
-# this is one way of doing it. Note that if the data gets updated, 
-# we need to decide if the thresholds are ok (newborns could be <50)
-
-processeddata <- rawdata %>% dplyr::filter( Height != "sixty" ) %>% 
-                             dplyr::mutate(Height = as.numeric(Height)) %>% 
-                             dplyr::filter(Height > 50 & Weight < 1000)
-
-# save data as RDS
-# I suggest you save your processed and cleaned data as RDS or RDA/Rdata files. 
-# This preserves coding like factors, characters, numeric, etc. 
-# If you save as CSV, that information would get lost.
-# See here for some suggestions on how to store your processed data:
-# http://www.sthda.com/english/wiki/saving-data-into-r-data-format-rds-and-rdata
-
-# location to save file
-save_data_location <- here::here("data","processed_data","processeddata.rds")
-
-saveRDS(processeddata, file = save_data_location)
+# load data
+dat_orig <- readRDS(here::here("data","raw_data","clean_data.rds"))
 
 
+######################################
+# Data cleaning and wrangling
+######################################
+
+# look up data structure and summary
+str(dat_orig)
+summary(dat_orig)
+
+# check percentage of missing values in each column by flu season
+aggregate(dat_orig[,3:30], by=list(dat_orig$season), FUN = function(x) { sum(is.na(x))/length(x)*100 })
+
+# It looks like 'bmi' and 'date_vaccinated' was not collected in 2014, 2015, and were mostly missing in 2016. Large proportion of 'race2'   
+# was missing in 2019 and some were missing in 2020. Need to recode 'race' column. 
+
+# check race variables
+table(dat_orig$race)
+table(dat_orig$race2)
+table(dat_orig$race, dat_orig$race2)
+
+
+white <- c("Polynesian","White","White/ Caucasian","White/Caucaian","White/Caucasian")
+black <- c("Black","Black or African American","Black/African American")
+hisp  <- unique(dat_orig$race)[grep("Hispanic", unique(dat_orig$race))] # extract values that contain "Hispanic"
+
+dat_clean <- dat_orig %>% 
+	# create new variable called race4 that contains four groups
+	mutate(race4 = ifelse(race %in% white, "White",
+												ifelse(race %in% black, "Black", 
+															 ifelse(race %in% hisp, "Hispanic", "Other"))),
+	# create new obesity variable 
+	       obesity = ifelse(bmi >= 30, "Yes", "No")) 
+  
+# create days before vaccination variable 
+REF_DATE <- "-09-01"
+
+dat_clean2 <- dat_clean %>%
+	tidyr::drop_na(prevactiter, titerincrease) %>%
+	dplyr::mutate(
+		year = factor(season),
+		days_before_vac = lubridate::time_length(
+			x = ifelse(
+				test = is.na(season),
+				yes = NA,
+				no = lubridate::interval(
+					start = lubridate::ymd(paste0(season, REF_DATE)),
+					end = date_vaccinated
+				)
+			),
+			unit = "day"
+		)
+	)
+
+
+dat_long <- dat_clean2 %>%
+	# pivot the data. This makes it easier to plot for all strains.
+	tidyr::pivot_longer(
+		ends_with("vaccine_fullname"),
+		names_to = "subtype", values_to = "vaccine_component"
+	) %>%
+	dplyr::mutate(
+		subtype = factor(case_when(
+			startsWith(subtype, "h1n1") ~ "H1N1",
+			startsWith(subtype, "h3n2") ~ "H3N2",
+			startsWith(subtype, "bvic") ~ "B-Vic",
+			startsWith(subtype, "yama") ~ "B-Yam",
+			TRUE ~ "uh-oh"
+		))
+	)
+
+# Save as RDS
+saveRDS(dat_clean2, here::here("data","processed_data","clean_data.rds"))
+saveRDS(dat_long, here::here("data","processed_data", "long_data.Rds"))
