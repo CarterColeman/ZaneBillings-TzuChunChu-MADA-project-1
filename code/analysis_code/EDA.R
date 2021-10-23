@@ -147,47 +147,7 @@ make_model <- function(.data, covariates = NULL) {
   return(model)
 }
 
-# TODO put this into a function that allows additional grouping so linear
-#  models can be stratified.
-dat_nested <- dat_long %>%
-  dplyr::group_by(subtype, strain_type, vaccine_component, strains_fullname) %>%
-  tidyr::nest() %>%
-  dplyr::filter(strain_type == subtype) %>%
-  dplyr::mutate(model = purrr::map(data, make_model))
 
-# TODO put this into a function so different versions of dat_nested with
-#  various strata can be passed into it.
-dat_models <- dat_nested %>% 
-  dplyr::mutate(
-    glance = purrr::map(model, broom::glance),
-    tidymodel = purrr::map(model, broom::tidy, conf.int = TRUE)
-  ) %>%
-  dplyr::mutate(
-    tidymodel = purrr::map(tidymodel, ~ tidyr::pivot_longer(., -term))
-  )  %>%
-  tidyr::unnest(glance) %>%
-  dplyr::select(-data, -model) %>%
-  dplyr::mutate(
-    strain_year = as.numeric(
-      stringr::str_extract(strains_fullname, "[0-9]{4}")
-    ),
-    vac_year = as.numeric(
-      stringr::str_extract(vaccine_component, "[0-9]{4}")
-    ),
-    year_diff = vac_year - strain_year,
-    homologous = (strains_fullname == vaccine_component)
-  ) %>%
-  # This part gets the slope estimate and 95% CI for the prevactiter coef.
-  # TODO generalize this into a function that can accept other term names.
-  # TODO clean up this code.
-  mutate(
-    that = purrr::map(tidymodel, ~ filter(.x, term == "prevactiter", name %in% CI_TERMS) %>% select(-term))
-  ) %>%
-  mutate(
-    this = purrr::map(that, pivot_wider)
-  ) %>%
-  unnest(this) %>%
-  select(-that)
 
 # TODO alter this function so that it accepts arguments for strata.
 test_plot_rename_this <- function() {

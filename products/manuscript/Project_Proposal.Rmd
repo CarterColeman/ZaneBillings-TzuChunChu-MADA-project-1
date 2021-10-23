@@ -32,14 +32,14 @@ The data is provided to the Handel research group through UGA’s CIVR-HRP site,
 
 To that end, we propose the following reach question.
 Does vaccine dose modify the effect of pre-existing immunity on immune response to the seasonal influenza vaccine?
+
 We hypothesize that dose does modify this relationship, but there are likely interactions with other host covariates, such as age or influenza subtype imprinting probability [@arevalo_earliest_2020], so this relationship is likely not as simple as it appears in the mechanistic models.
 
 ## Proposed analysis
 
 Several techniques could be used to analyze this relationship, such as:
-CART models if a tree-based approach is desirable;
-Unsupervised clustering or trajectory clustering across longitudinal data to identify latent groupings of covariates which could potentially interact to determine outcomes; and
-Advanced machine learning algorithms such as support vector machines or neural networks to predict an individual’s vaccine response.
+CART models if a tree-based approach is desirable; Unsupervised clustering or trajectory clustering across longitudinal data to identify latent groupings of covariates which could potentially interact to determine outcomes; and Advanced machine learning algorithms such as support vector machines or neural networks to predict an individual’s vaccine response.
+
 However, we hypothesize that this relationship is causal, so prediction algorithms may not be the best fit here. While advanced causal analyses are potentially outside the scope of this analysis, we propose to use generalized linear mixed-effects models (GLMMs), potentially in a Bayesian framework, in order to gain insight about effects on influenza vaccine response.
 
 
