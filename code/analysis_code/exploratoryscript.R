@@ -55,7 +55,7 @@ ind_elderly <- dat_elderly %>%
 
 
 # check percentage of missing values in each column by flu season
-aggregate(ind_elderly, by=list(dat_elderly$season), FUN = function(x) { sum(is.na(x))/length(x)*100 })
+aggregate(ind_elderly, by=list(ind_elderly$season), FUN = function(x) { sum(is.na(x))/length(x)*100 })
 
 # save summary table 
 summarytable_location = here("results","tables", "summarytable.rds")
