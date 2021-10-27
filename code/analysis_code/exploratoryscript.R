@@ -27,10 +27,10 @@ dat_elderly <- dat_clean %>%
 
 #create table 1 to summarize host characteristics by dose (SD vs HD)	
 summarytable <- dat_elderly %>% 
-	select(season, age, gender, race4, bmi, obesity, prior_year_vac, dose) %>% 
+	select(season, age, gender, race2, bmi, obesity, prior_year_vac, dose) %>% 
 	# manually change the order in the dataset, before passing to `tbl_summary`
 	mutate(gender = factor(gender, levels = c("Male", "Female"),),
-				 race4  = factor(race4, levels = c("White", "Black", "Hispanic", "Other")),
+				 race2  = factor(race2, levels = c("White", "Black", "Hispanic", "Other")),
 				 prior_year_vac = factor(prior_year_vac, levels = c("Yes", "No", "Unknown"))) %>% 
 	tbl_strata(
 		strata = season,
@@ -40,7 +40,7 @@ summarytable <- dat_elderly %>%
 				by = dose, missing = "no",
 		    label = list(age ~ "Age",
 		    						 gender ~ "Gender",
-		    						 race4 ~ "Race",
+		    						 race2 ~ "Race",
 		    						 bmi ~ "BMI",
 		    						 obesity ~ "Obesity",
 		    						 prior_year_vac ~ "Prior season vaccination"))) %>%
@@ -51,7 +51,7 @@ summarytable <- dat_elderly %>%
 
 ind_elderly <- dat_elderly %>% 
   # keep unique participant rows for each flu season
-  distinct(id, season, age, gender, race4, bmi, obesity, prior_year_vac, dose)
+  distinct(id, season, age, gender, race2, bmi, obesity, prior_year_vac, dose)
 
 
 # check percentage of missing values in each column by flu season
@@ -103,7 +103,7 @@ p3 <- dat_elderly %>%
 	tidyr::drop_na(days_before_vac) %>%
 	ggplot(aes(x = days_before_vac, y = dose)) +
 	geom_violin(width = 0.5, alpha = 0.5) +
-	geom_jitter(alpha = 0.1, aes(col = as.factor(year))) +
+	geom_jitter(alpha = 0.1, aes(col = as.factor(season))) +
 	theme_bw() +
 	theme(legend.position = "bottom") +
 	labs(
@@ -120,7 +120,7 @@ gender_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=gender)) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
   facet_wrap(~season)
 
-race_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=race4)) +
+race_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=race2)) +
   geom_density(alpha=.30) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
   facet_wrap(~season)
@@ -161,9 +161,9 @@ bmi_plot <-
   facet_wrap(~season) 
 
 # save plot 
-ggsave(p1, filename = here::here("results", "figures", "days-since-vac-distribution.png"), height = 8.5, width = 11)
-ggsave(p2, filename = here::here("results", "figures", "dose-distribution.png"), height = 8.5, width = 11)
-ggsave(p3, filename = here::here("results", "figures", "time-dose.png"), height = 8.5, width = 11)
+ggsave(plot = p1, filename = here::here("results", "figures", "days-since-vac-distribution.png"), height = 8.5, width = 11)
+ggsave(plot = p2, filename = here::here("results", "figures", "dose-distribution.png"), height = 8.5, width = 11)
+ggsave(plot = p3, filename = here::here("results", "figures", "time-dose.png"), height = 8.5, width = 11)
 
 ggsave(gender_p, filename = here::here("results", "figures", "gender_plot.png"), height = 8.5, width = 11)
 ggsave(race_p, filename = here::here("results", "figures", "race_plot.png"), height = 8.5, width = 11)
@@ -188,10 +188,10 @@ dat_elderly_long %>% make_vacc_strain_plots("No-Strata", indiv = F)
 dat_elderly_long %>% make_vacc_strain_plots("Gender", indiv = F, color = gender)
 
 # Separate by season.
-dat_elderly_long %>% make_vacc_strain_plots("Season", indiv = F, color = year)
+dat_elderly_long %>% make_vacc_strain_plots("Season", indiv = F, color = factor(season))
 
 # Separate by race.
-dat_elderly_long %>% make_vacc_strain_plots("Race", indiv = F, color = race4)
+dat_elderly_long %>% make_vacc_strain_plots("Race", indiv = F, color = race2)
 
 # Separate by dose.
 dat_elderly_long %>% make_vacc_strain_plots("Dose", indiv = F, color = dose)
