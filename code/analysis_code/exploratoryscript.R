@@ -25,7 +25,7 @@ dat_elderly <- dat_clean %>%
 #Data exploration/description
 ######################################
 
-#create table 1 to summarize host characteristics by dose (SD vs HD)	
+# create table 1 to summarize host characteristics by dose (SD vs HD)	
 summarytable <- dat_elderly %>% 
 	select(season, age, gender, race2, bmi, obesity, prior_year_vac, dose) %>% 
 	# manually change the order in the dataset, before passing to `tbl_summary`

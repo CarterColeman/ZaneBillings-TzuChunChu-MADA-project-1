@@ -96,7 +96,7 @@ lm_all <-
 	linear_fit %>% 
 	fit(titerincrease ~ pretiter + dose + age + white + obesity + days_before_vac + cumulative_prior_vac + prior_year_vac, data = dat_elderly)
 
-#Summarize the results
+# Summarize the results
 tidy(lm_all)
 
 # generate a dot-and-whisker plot of linear regression results with all predictors
@@ -152,5 +152,5 @@ summary(m4)
 #positively asscociated with increase in titer. 
 
 
-# save result plots
+# save result plot
 ggsave(dotwhisker_all_pred, filename = here::here("results", "figures", "dotwhisker_all_pred.png"), height = 8.5, width = 11)
