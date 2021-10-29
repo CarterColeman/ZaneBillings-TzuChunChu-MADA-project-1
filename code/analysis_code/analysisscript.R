@@ -84,7 +84,7 @@ tidy(lm_accpvac)
 tidy(lm_bmi)
 tidy(lm_pretiter)
 
-# Compute the analysis of variance for each categorical variable
+# Independent t-tests were used to compare the mean of titer increase between groups
 t.test(titerincrease ~ dose, data = dat_elderly, alternative = "two.sided")
 t.test(titerincrease ~ white, data = dat_elderly, alternative = "two.sided")
 t.test(titerincrease ~ prior_year_vac, data = dat_elderly, alternative = "two.sided")
