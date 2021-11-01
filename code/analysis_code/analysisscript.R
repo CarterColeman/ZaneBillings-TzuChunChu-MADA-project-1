@@ -10,9 +10,12 @@ library(tidymodels) # for model fitting
 library(tidyverse) # data wrangling 
 library(dotwhisker)  # for visualizing regression results
 library(lme4) # for fitting multilevel models
+library(gtsummary)
+library(gt)
 
 # Load data
 dat_clean <- readRDS(here::here("data","processed_data","clean_data.rds"))
+dat_long <- readRDS(here::here("data","processed_data","long_data.rds"))
 
 # Check total number of participants
 length(unique(clean.dat$id)) #2,286 pats
@@ -24,6 +27,15 @@ length(unique(clean.dat$id)) #2,286 pats
 # First, want to focus on the vaccine against H1N1, only patient >= 65 y.o., and only data after 2016 which included vaccine year and BMI data
 dat_elderly <- dat_clean %>%
 	dplyr::filter(age >= 65, strain_type == "H1N1", season > 2016)
+
+dat_elderly_long <- dat_long %>%
+  dplyr::filter(
+    age >= 65,
+    startsWith(as.character(study), "UGA"),
+    as.character(strains_fullname) == as.character(vaccine_component)
+  ) %>%
+	rename(sex = gender) %>%
+	mutate(white = ifelse(race2 == "White", "White", "Non-White"))
 
 # Check total number of participants again
 length(unique(dat_elderly$id)) #348 pats
@@ -76,13 +88,30 @@ lm_pretiter <-
 	linear_fit %>% 
 	fit(titerincrease ~ pretiter, data = dat_elderly)
 
+# Summarize the results\
 
-# Summarize the results
 tidy(lm_age)
 tidy(lm_daysbvac)
 tidy(lm_accpvac)
 tidy(lm_bmi)
 tidy(lm_pretiter)
+
+# Make a table of results
+univariate_table <- dat_elderly_long %>%
+	select(titerincrease, season, subtype, prevactiter, age, sex, white,
+		   days_before_vac, bmi, prior_year_vac) %>%
+	tbl_uvregression(
+		method = lm,
+		y = titerincrease,
+		estimate_fun = function(x) style_sigfig(x, digits = 4)
+	) %>%
+	add_global_p() %>%
+	bold_labels() %>%
+	modify_footnote(
+		p.value ~ "Type III overall test of effect"
+	)
+tab_loc <- here::here("results", "tables", "univariate_reg_tab.Rds")
+saveRDS(univariate_table, file = tab_loc)
 
 # Independent t-tests were used to compare the mean of titer increase between groups
 t.test(titerincrease ~ dose, data = dat_elderly, alternative = "two.sided")
@@ -94,7 +123,11 @@ t.test(titerincrease ~ obesity, data = dat_elderly, alternative = "two.sided")
 ## Fit the non-multilevel models with all predictors
 lm_all <- 
 	linear_fit %>% 
-	fit(titerincrease ~ pretiter + dose + age + white + obesity + days_before_vac + cumulative_prior_vac + prior_year_vac, data = dat_elderly)
+	fit(
+		titerincrease ~ prevactiter + age + sex + white + days_before_vac +
+			bmi + prior_year_vac,
+		data = dat_elderly_long
+	)
 
 # Summarize the results
 tidy(lm_all)
@@ -104,8 +137,11 @@ dotwhisker_all_pred <- tidy(lm_all) %>%
 	dotwhisker::dwplot(dot_args = list(size = 2, color = "black"),
 										 whisker_args = list(color = "black"),
 										 vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
-dotwhisker_all_pred
+dwplot <- dotwhisker_all_pred +
+	cowplot::theme_cowplot()
 
+ggsave(plot = dwplot,
+	   filename = here::here("results", "figures", "firstorderlmcoef.png"))
 
 #############################
 ## Linear Mixed Model Fit  ##

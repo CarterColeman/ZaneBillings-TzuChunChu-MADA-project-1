@@ -13,13 +13,36 @@ library(gt) # gtsave function used to save gt table
 # source functions for plotting
 source(here::here("code","analysis_code","EDA.R"))
 
+theme_set(
+  cowplot::theme_cowplot()
+)
+
 # load data
 dat_clean <- readRDS(here::here("data","processed_data","clean_data.rds"))
 dat_long  <- readRDS(here::here("data","processed_data","long_data.rds"))
 
 # only patients >= 65 y.o.
 dat_elderly <- dat_clean %>%
-	dplyr::filter(age >= 65)
+	dplyr::filter(
+	  age >= 65,
+	  # filter out only UGA data
+	  startsWith(as.character(study), "UGA")
+	 ) %>%
+  # Drop factor levels that no longer exist
+  dplyr::mutate(
+    across(where(is.factor), forcats::fct_drop)
+  )
+
+dat_elderly_long <- dat_long %>%
+  dplyr::filter(
+    age >= 65,
+    # filter out only UGA data
+    startsWith(as.character(study), "UGA")
+  ) %>%
+  # Drop factor levels that no longer exist
+  dplyr::mutate(
+    across(where(is.factor), forcats::fct_drop)
+  )
 
 ######################################
 #Data exploration/description
@@ -27,27 +50,76 @@ dat_elderly <- dat_clean %>%
 
 # create table 1 to summarize host characteristics by dose (SD vs HD)	
 summarytable <- dat_elderly %>% 
-	select(season, age, gender, race2, bmi, obesity, prior_year_vac, dose) %>% 
-	# manually change the order in the dataset, before passing to `tbl_summary`
-	mutate(gender = factor(gender, levels = c("Male", "Female"),),
-				 race2  = factor(race2, levels = c("White", "Black", "Hispanic", "Other")),
-				 prior_year_vac = factor(prior_year_vac, levels = c("Yes", "No", "Unknown"))) %>% 
-	tbl_strata(
-		strata = season,
-		.tbl_fun =
-			~ .x %>%
-			tbl_summary(
-				by = dose, missing = "no",
-		    label = list(age ~ "Age",
-		    						 gender ~ "Gender",
-		    						 race2 ~ "Race",
-		    						 bmi ~ "BMI",
-		    						 obesity ~ "Obesity",
-		    						 prior_year_vac ~ "Prior season vaccination"))) %>%
-	bold_labels() %>% 
-	# customize footnote
-	as_gt() %>%
-	gt::tab_source_note(gt::md("Abbreviations, SD: standard dose; HD: high dose"))
+  select(season, age, gender, race2, bmi, obesity, prior_year_vac, dose,
+         prevactiter) %>%
+  dplyr::distinct() %>%
+  tbl_strata(
+    strata = season,
+    .tbl_fun = ~ .x %>%
+      tbl_summary(
+        by = dose,
+        missing = "no",
+        label = list(
+          age ~ "Age",
+          gender ~ "Sex",
+          race2 ~ "Race",
+          bmi ~ "BMI",
+          obesity ~ "Obesity",
+          prior_year_vac ~ "Prior season vaccination",
+          prevactiter ~ "Pre-vaccination HAI titer"
+        ),
+        type = list(
+          age ~ "continuous",
+          gender ~ "categorical",
+          race2 ~ "categorical",
+          bmi ~ "continuous",
+          obesity ~ "categorical",
+          prior_year_vac ~ "categorical",
+          prevactiter ~ "continuous"
+        )
+      )
+  ) %>%
+  bold_labels() %>%
+  modify_caption("Demographic characteristics of UGAFlu cohort by season.") %>%
+  as_gt() %>%
+  gt::tab_source_note(gt::md("SD: standard dose, HD: high dose"))
+
+# table of outcome summaries
+
+outcomestable <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  select(season, dose, seroconversion, seroprotection,
+         postvactiter, titerincrease, subtype) %>%
+  tbl_strata(
+    strata = subtype,
+    .combine_with = "tbl_stack",
+    quiet = TRUE,
+    .tbl_fun = ~ .x %>%
+      tbl_strata(
+        strata = season,
+        .tbl_fun = ~ .x %>%
+          tbl_summary(
+            by = dose,
+            missing = "no",
+            label = list(
+              seroconversion = "Seroconversion",
+              seroprotection = "Seroprotection",
+              postvactiter = "Post-vaccination HAI titer",
+              titerincrease = "HAI titer fold change"
+            ),
+            type = list(
+              seroconversion = "dichotomous",
+              seroprotection = "dichotomous",
+              postvactiter = "continuous",
+              titerincrease = "continuous"
+            )
+          )
+      )
+  ) %>%
+  bold_labels() %>%
+  modify_caption("Outcome summaries for the UGAFlu cohort study.") %>%
+  as_gt() %>%
+  gt::tab_source_note(gt::md("SD: standard dose, HD: high dose"))
 
 ind_elderly <- dat_elderly %>% 
   # keep unique participant rows for each flu season
@@ -58,13 +130,53 @@ ind_elderly <- dat_elderly %>%
 aggregate(ind_elderly, by=list(ind_elderly$season), FUN = function(x) { sum(is.na(x))/length(x)*100 })
 
 # save summary table 
-summarytable_location = here("results","tables", "summarytable.rds")
+summarytable_location = here("results","tables", "summarytable.Rds")
 saveRDS(summarytable, file = summarytable_location)
+saveRDS(outcomestable, file =  here("results","tables", "outcomestable.Rds"))
 
 ######################################
 #Data visualization
 ######################################
 
+# Univariate plots of age and BMI
+covars_hist <- cowplot::plot_grid(
+  dat_elderly_long %>%
+    filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+    ggplot(aes(x = age)) +
+    geom_histogram(color = "black", fill = "gray", binwidth = 1),
+  dat_elderly_long %>%
+    filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+    ggplot(aes(x = bmi)) +
+    geom_histogram(color = "black", fill = "gray", binwidth = 1)
+)
+ggsave(
+  plot = covars_hist,
+  filename = here::here("results", "figures", "covars_hist.png"),
+  width = 11.5, height = 8
+)
+
+# Univariate plots of titer increase and fold change
+outcomes_plot <- cowplot::plot_grid(
+  dat_elderly_long %>%
+    filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+    ggplot(aes(x = postvactiter)) +
+    geom_bar(color = "black", fill = "gray") +
+    labs(x = "HAI post-vaccination titer") +
+    scale_x_continuous(labels = seq(0, 10, 1), breaks = seq(0, 10, 1)) +
+    scale_y_continuous(expand = expansion(c(0, 0.05), c(0,0))),
+  dat_elderly_long %>%
+    filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+    ggplot(aes(x = titerincrease)) +
+    geom_bar(color = "black", fill = "gray") +
+    labs(x = "HAI titer fold increase (log2)") +
+    scale_x_continuous(labels = seq(-3, 7, 1), breaks = seq(-3, 7, 1)) +
+    scale_y_continuous(expand = expansion(c(0, 0.05), c(0,0)))
+)
+ggsave(
+  plot = outcomes_plot,
+  filename = here::here("results", "figures", "outcomes_hist.png"),
+  width = 11.5, height = 8
+)
 
 #### Time and dose distributions ####
 
@@ -115,50 +227,79 @@ p3 <- dat_elderly %>%
 #### Relationship between host factors and titer increase ####
 
 # density plot
-gender_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=gender)) +
-  geom_density(alpha=.30) +
+gender_p <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = titerincrease, fill = gender)) +
+  geom_histogram(alpha=.30, position = "identity", color = "black",
+                 aes(y = ..density..), binwidth = 1) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
-  facet_wrap(~season)
+  scale_fill_manual(values = c("orange", "purple")) +
+  facet_grid(subtype ~ season) +
+  labs(x = "HAI titer increase", fill = "sex") +
+  theme(legend.position = "bottom", legend.justification = "center")
 
-race_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=race2)) +
-  geom_density(alpha=.30) +
+race_p <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  mutate(race3 = factor(race2 == "White",
+                        levels = c(TRUE, FALSE),
+                        labels = c("White", "Other"))) %>%
+  ggplot(aes(x = titerincrease, fill = race3)) +
+  geom_histogram(alpha=.30, position = "identity", color = "black",
+                 aes(y = ..density..), binwidth = 1) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
-  facet_wrap(~season)
+  scale_fill_manual(values = c("orange", "purple")) +
+  facet_grid(subtype ~ season) +
+  labs(x = "HAI titer increase", fill = "race") +
+  theme(legend.position = "bottom", legend.justification = "center")
 
-obesity_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=obesity)) +
-  geom_density(alpha=.30) +
+obesity_p <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = titerincrease, fill = obesity)) +
+  geom_histogram(alpha=.30, position = "identity", color = "black",
+                 aes(y = ..density..), binwidth = 1) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
-  facet_wrap(~season)
+  scale_fill_manual(values = c("orange", "purple")) +
+  facet_grid(subtype ~ season) +
+  labs(x = "HAI titer increase", fill = "obesity") +
+  theme(legend.position = "bottom", legend.justification = "center")
 
-prior_year_vac_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=prior_year_vac)) +
-  geom_density(alpha=.30) +
+prior_year_vac_p <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = titerincrease, fill = prior_year_vac)) +
+  geom_histogram(alpha=.30, position = "identity", color = "black",
+                 aes(y = ..density..), binwidth = 1) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
-  facet_wrap(~season)
+  scale_fill_manual(values = c("orange", "purple")) +
+  facet_grid(subtype ~ season) +
+  labs(x = "HAI titer increase", fill = "prior vaccination status") +
+  theme(legend.position = "bottom", legend.justification = "center")
 
-dose_p <- ggplot(dat_elderly, aes(x=titerincrease, fill=dose)) +
-  geom_density(alpha=.30) +
+dose_p <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = titerincrease, fill = dose)) +
+  geom_histogram(alpha=.30, position = "identity", color = "black",
+                 aes(y = ..density..), binwidth = 1) +
   scale_x_continuous(limits = c(-5,10), breaks = seq(-6,10,2)) +
-  facet_wrap(~season)
+  scale_fill_manual(values = c("orange", "purple")) +
+  facet_grid(subtype ~ season) +
+  labs(x = "HAI titer increase", fill = "dose") +
+  theme(legend.position = "bottom", legend.justification = "center")
 
 # violin plot with jitter
-age_plot <- ggplot(dat_elderly, aes(x=titerincrease, y=age)) + 
-  geom_violin(trim = FALSE) +
-  geom_jitter(aes(colour = age), width = 0.15, height = 0.15, alpha = 0.5, size = 0.85) +
-  scale_colour_gradient(low="#FFA07A",high="#7226F5") + 
-  scale_y_continuous(limits = c(65,85), breaks = seq(65,85,5)) +
-  coord_flip() +
-  facet_wrap(~season) 
+age_plot <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = age, y = titerincrease)) + 
+  geom_jitter(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  facet_wrap(subtype ~ season)
 
 
-bmi_plot <- 
-  dat_elderly %>% 
-  filter(season > 2016) %>% 
-  ggplot(aes(x=titerincrease, y=bmi)) + 
-  geom_violin(trim = FALSE) +
-  geom_jitter(aes(colour = bmi), width = 0.15, height = 0.15, alpha = 0.5, size = 0.85) +
-  scale_colour_gradient(low="#FFA07A",high="#7226F5") + 
-  coord_flip() +
-  facet_wrap(~season) 
+bmi_plot <- dat_elderly_long %>%
+  filter(as.character(strains_fullname) == as.character(vaccine_component)) %>%
+  ggplot(aes(x = bmi, y = titerincrease)) + 
+  geom_jitter(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  facet_wrap(subtype ~ season)
 
 # save plot 
 ggsave(plot = p1, filename = here::here("results", "figures", "days-since-vac-distribution.png"), height = 8.5, width = 11)
@@ -171,50 +312,49 @@ ggsave(obesity_p, filename = here::here("results", "figures", "obesity_plot.png"
 ggsave(prior_year_vac_p, filename = here::here("results", "figures", "prior_year_vac_plot.png"), height = 8.5, width = 11)
 ggsave(dose_p, filename = here::here("results", "figures", "dose_plot.png"), height = 8.5, width = 11)
 ggsave(age_plot, filename = here::here("results", "figures", "age_plot.png"), height = 8.5, width = 11)
-ggsave(bmi_plot, filename = here::here("results", "figures", "bmi_plote.png"), height = 8.5, width = 11)
+ggsave(bmi_plot, filename = here::here("results", "figures", "bmi_plot.png"), height = 8.5, width = 11)
 
 
-  
-
-# Only patients >= 65 y.o. for looking at relationships w/ dose.
-# use long format data since it's easier to generate panel plots
-dat_elderly_long <- dat_long %>%
-	dplyr::filter(age >= 65)
-
-# No stratification in these ones.
-dat_elderly_long %>% make_vacc_strain_plots("No-Strata", indiv = F)
-
-# Separate by sex.
-dat_elderly_long %>% make_vacc_strain_plots("Gender", indiv = F, color = gender)
-
-# Separate by season.
-dat_elderly_long %>% make_vacc_strain_plots("Season", indiv = F, color = factor(season))
-
-# Separate by race.
-dat_elderly_long %>% make_vacc_strain_plots("Race", indiv = F, color = race2)
-
-# Separate by dose.
-dat_elderly_long %>% make_vacc_strain_plots("Dose", indiv = F, color = dose)
-
-# Separate by age.
-dat_elderly_long %>% make_vacc_strain_plots("Age", indiv = F, color = age)
-
-# Separate by BMI
-dat_elderly_long %>%
-	tidyr::drop_na(bmi) %>%
-	make_vacc_strain_plots("BMI", indiv = F, color = bmi)
-
-# Separate by obesity.
-dat_elderly_long %>% 
-	tidyr::drop_na(obesity) %>%
-	make_vacc_strain_plots("Obesity", indiv = F, color = obesity)
-
-# Color with days since vaccination
-dat_elderly_long %>%
-	tidyr::drop_na(days_before_vac) %>%
-	make_vacc_strain_plots("Time", indiv = F, color = days_before_vac)
-
-# Days before vacc but only elderly
-dat_elderly_long %>%
-	tidyr::drop_na(days_before_vac) %>%
-	make_vacc_strain_plots("Elderly-Time", indiv = F, color = days_before_vac)
+# These plots won't be in the manuscript so I commented this out.
+# # Only patients >= 65 y.o. for looking at relationships w/ dose.
+# # use long format data since it's easier to generate panel plots
+# dat_elderly_long <- dat_long %>%
+# 	dplyr::filter(age >= 65)
+#
+# # No stratification in these ones.
+# dat_elderly_long %>% make_vacc_strain_plots("No-Strata", indiv = F)
+# 
+# # Separate by sex.
+# dat_elderly_long %>% make_vacc_strain_plots("Gender", indiv = F, color = gender)
+# 
+# # Separate by season.
+# dat_elderly_long %>% make_vacc_strain_plots("Season", indiv = F, color = factor(season))
+# 
+# # Separate by race.
+# dat_elderly_long %>% make_vacc_strain_plots("Race", indiv = F, color = race2)
+# 
+# # Separate by dose.
+# dat_elderly_long %>% make_vacc_strain_plots("Dose", indiv = F, color = dose)
+# 
+# # Separate by age.
+# dat_elderly_long %>% make_vacc_strain_plots("Age", indiv = F, color = age)
+# 
+# # Separate by BMI
+# dat_elderly_long %>%
+# 	tidyr::drop_na(bmi) %>%
+# 	make_vacc_strain_plots("BMI", indiv = F, color = bmi)
+# 
+# # Separate by obesity.
+# dat_elderly_long %>% 
+# 	tidyr::drop_na(obesity) %>%
+# 	make_vacc_strain_plots("Obesity", indiv = F, color = obesity)
+# 
+# # Color with days since vaccination
+# dat_elderly_long %>%
+# 	tidyr::drop_na(days_before_vac) %>%
+# 	make_vacc_strain_plots("Time", indiv = F, color = days_before_vac)
+# 
+# # Days before vacc but only elderly
+# dat_elderly_long %>%
+# 	tidyr::drop_na(days_before_vac) %>%
+# 	make_vacc_strain_plots("Elderly-Time", indiv = F, color = days_before_vac)
