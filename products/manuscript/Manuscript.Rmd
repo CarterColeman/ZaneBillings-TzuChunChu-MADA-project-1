@@ -203,7 +203,12 @@ In order to allow for potential nonlinear relationships, we also allowed the var
 
 ### Models with subtype
 
-We furthermore decided to stratify the models by subtype: that is, we fit a separate model for A(H1N1), A(H3N2), B(Yamagata) and B(Victoria).
+We furthermore decided to stratify the models by subtype: that is, we fit a separate model for A(H1N1), A(H3N2), B(Yamagata) and B(Victoria). The coefficient plot is shown in Figure \@ref(fig:FOlmPlotSubtype).
+
+```{r FOlmPlotSubtype, fig.cap = "Caption"}
+knitr::include_graphics(here::here("results", "figures", "firstorderlmcoef_subtype.png"))
+```
+
 
 ### Models with season
 

@@ -12,6 +12,7 @@ library(dotwhisker)  # for visualizing regression results
 library(lme4) # for fitting multilevel models
 library(gtsummary)
 library(gt)
+library(ggpubr) # for ggarrange function
 
 # Load data
 dat_clean <- readRDS(here::here("data","processed_data","clean_data.rds"))
@@ -26,7 +27,9 @@ length(unique(clean.dat$id)) #2,286 pats
 
 # First, want to focus on the vaccine against H1N1, only patient >= 65 y.o., and only data after 2016 which included vaccine year and BMI data
 dat_elderly <- dat_clean %>%
-	dplyr::filter(age >= 65, strain_type == "H1N1", season > 2016)
+	dplyr::filter(
+		age >= 65, 
+	    startsWith(as.character(study), "UGA"))
 
 dat_elderly_long <- dat_long %>%
   dplyr::filter(
@@ -88,13 +91,33 @@ lm_pretiter <-
 	linear_fit %>% 
 	fit(titerincrease ~ pretiter, data = dat_elderly)
 
-# Summarize the results\
+lm_dose <- 
+	linear_fit %>% 
+	fit(titerincrease ~ dose, data = dat_elderly)
+
+lm_white <- 
+	linear_fit %>% 
+	fit(titerincrease ~ white, data = dat_elderly)
+
+lm_prior_year_vac <- 
+	linear_fit %>% 
+	fit(titerincrease ~ prior_year_vac, data = dat_elderly)
+
+lm_obesity <- 
+	linear_fit %>% 
+	fit(titerincrease ~ obesity, data = dat_elderly)
+
+# Summarize the results
 
 tidy(lm_age)
 tidy(lm_daysbvac)
 tidy(lm_accpvac)
 tidy(lm_bmi)
 tidy(lm_pretiter)
+tidy(lm_dose)
+tidy(lm_white)
+tidy(lm_prior_year_vac)
+tidy(lm_obesity)
 
 # Make a table of results
 univariate_table <- dat_elderly_long %>%
@@ -112,12 +135,6 @@ univariate_table <- dat_elderly_long %>%
 	)
 tab_loc <- here::here("results", "tables", "univariate_reg_tab.Rds")
 saveRDS(univariate_table, file = tab_loc)
-
-# Independent t-tests were used to compare the mean of titer increase between groups
-t.test(titerincrease ~ dose, data = dat_elderly, alternative = "two.sided")
-t.test(titerincrease ~ white, data = dat_elderly, alternative = "two.sided")
-t.test(titerincrease ~ prior_year_vac, data = dat_elderly, alternative = "two.sided")
-t.test(titerincrease ~ obesity, data = dat_elderly, alternative = "two.sided")
 
 
 ## Fit the non-multilevel models with all predictors
@@ -138,10 +155,107 @@ dotwhisker_all_pred <- tidy(lm_all) %>%
 										 whisker_args = list(color = "black"),
 										 vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
 dwplot <- dotwhisker_all_pred +
+	xlab("coefficient") +
 	cowplot::theme_cowplot()
 
 ggsave(plot = dwplot,
 	   filename = here::here("results", "figures", "firstorderlmcoef.png"))
+
+## Fit separate models for each subtype
+dat_elderly_long_h1n1 <- dat_elderly_long %>% 
+	dplyr::filter(subtype == "H1N1")
+
+dat_elderly_long_h3n2 <- dat_elderly_long %>% 
+	dplyr::filter(subtype == "H3N2")
+
+dat_elderly_long_byam <- dat_elderly_long %>% 
+	dplyr::filter(subtype == "B-Yam")
+
+dat_elderly_long_bvic <- dat_elderly_long %>% 
+	dplyr::filter(subtype == "B-Vic")
+
+lm_all_h1n1 <- 
+	linear_fit %>% 
+	fit(
+		titerincrease ~ prevactiter + age + sex + white + days_before_vac +
+			bmi + prior_year_vac,
+		data = dat_elderly_long_h1n1
+	)
+
+lm_all_h3n2 <- 
+	linear_fit %>% 
+	fit(
+		titerincrease ~ prevactiter + age + sex + white + days_before_vac +
+			bmi + prior_year_vac,
+		data = dat_elderly_long_h3n2
+	)
+
+lm_all_byam <- 
+	linear_fit %>% 
+	fit(
+		titerincrease ~ prevactiter + age + sex + white + days_before_vac +
+			bmi + prior_year_vac,
+		data = dat_elderly_long_byam
+	)
+
+lm_all_bvic <- 
+	linear_fit %>% 
+	fit(
+		titerincrease ~ prevactiter + age + sex + white + days_before_vac +
+			bmi + prior_year_vac,
+		data = dat_elderly_long_bvic
+	)
+
+# Summarize the results
+tidy(lm_all_h1n1)
+tidy(lm_all_h3n2)
+tidy(lm_all_byam)
+tidy(lm_all_bvic)
+
+# generate a dot-and-whisker plot of linear regression results with all predictors
+dotwhisker_all_pred <- tidy(lm_all_h1n1) %>% 
+	dotwhisker::dwplot(dot_args = list(size = 1.5, color = "black"),
+					   whisker_args = list(color = "black"),
+					   vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
+dwplot.1 <- dotwhisker_all_pred +
+	ggtitle("H1N1") +
+	xlab("coefficient") +
+	cowplot::theme_cowplot()
+
+dotwhisker_all_pred <- tidy(lm_all_h3n2) %>% 
+	dotwhisker::dwplot(dot_args = list(size = 1.5, color = "black"),
+					   whisker_args = list(color = "black"),
+					   vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
+dwplot.2 <- dotwhisker_all_pred +
+	ggtitle("H3N12") +
+	xlab("coefficient") +
+	cowplot::theme_cowplot()
+
+dotwhisker_all_pred <- tidy(lm_all_byam) %>% 
+	dotwhisker::dwplot(dot_args = list(size = 1.5, color = "black"),
+					   whisker_args = list(color = "black"),
+					   vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
+dwplot.3 <- dotwhisker_all_pred +
+	ggtitle("B-Yam") +
+	xlab("coefficient") +
+	cowplot::theme_cowplot()
+
+dotwhisker_all_pred <- tidy(lm_all_bvic) %>% 
+	dotwhisker::dwplot(dot_args = list(size = 1.5, color = "black"),
+					   whisker_args = list(color = "black"),
+					   vline = geom_vline(xintercept = 0, colour = "grey50", linetype = 2))
+dwplot.4 <- dotwhisker_all_pred +
+	ggtitle("B-Vic") +
+	xlab("coefficient") +
+	cowplot::theme_cowplot()
+
+dwplot.subtype <- ggarrange(dwplot.1, dwplot.2, dwplot.3, dwplot.4, 
+							ncol = 2, nrow = 2,
+							widths = c(2,2))
+
+ggsave(plot = dwplot.subtype,
+	   filename = here::here("results", "figures", "firstorderlmcoef_subtype.png"))
+
 
 #############################
 ## Linear Mixed Model Fit  ##
@@ -190,3 +304,5 @@ summary(m4)
 
 # save result plot
 ggsave(dotwhisker_all_pred, filename = here::here("results", "figures", "dotwhisker_all_pred.png"), height = 8.5, width = 11)
+
+

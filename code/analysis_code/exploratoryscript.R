@@ -80,7 +80,7 @@ summarytable <- dat_elderly %>%
       )
   ) %>%
   bold_labels() %>%
-  modify_caption("Demographic characteristics of UGAFlu cohort by season.") %>%
+  modify_caption("Demographic characteristics of UGA Flu cohort by season.") %>%
   as_gt() %>%
   gt::tab_source_note(gt::md("SD: standard dose, HD: high dose"))
 
