@@ -12,8 +12,6 @@ The purpose of this repository is to evaluate whether vaccine dose modify the ef
 - *new_clean_data.Rda* is the data downloaded directly from a private GitHub repository, and is used for the analysis
 - *clean_data.Rda* and *long_data.Rda* were generated using using the *processingscript.R*
 
-R scripts for part two of our project are located in the `code` folder, and you will see the text and codes used for data cleaning, wrangling, explorary and visulization. All the figures and tables were saved in the `result` folder.
-
 **Code folder:** 
 - *processingscript.R* runs the data cleaning and wrangling process
 - *exploration.Rmd* produces tables and plottings to explore the relation between our predictors of interests and main outcome. 
