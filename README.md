@@ -4,7 +4,7 @@ The purpose of this repository is to evaluate whether vaccine dose modify the ef
 
 - The project proposal is available in the `products` folder.  
 - All the figures and tables were saved in the `result` folder.
-- The *Manuscript.html* can be knitted from the *Manuscript.R* script located in the `products` folder.
+- The *Manuscript.html* knitted from *Manuscript.R* script can be found in the `products` folder  .
 
 
 # Description of datafiles and R codes
