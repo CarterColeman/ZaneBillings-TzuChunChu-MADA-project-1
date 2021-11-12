@@ -1,0 +1,248 @@
+---
+title: "Untitled"
+author: "Zane"
+date: "11/11/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+```
+
+# Intro
+
+In this analysis, we will fit several regularization models to the data. The main outcome here will be HAI titer response. This models might be kind of busted but I will fix them later.
+
+First we need to load packages.
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(here)
+library(finetune)
+```
+
+Next import the data.
+
+```{r}
+dat <- readRDS(here::here("data", "processed_data", "clean_data.Rds")) |>
+  dplyr::mutate(
+    across(contains("fullname"), as.character),
+    homologous = h1n1_vaccine_fullname == strains_fullname |
+      h3n2_vaccine_fullname == strains_fullname |
+      bvictoria_vaccine_fullname == strains_fullname |
+      yamagata_vaccine_fullname == strains_fullname,
+    # Assume missing = FALSE
+    white = if_else(race2 == "White", 1, 0),
+    male = gender == "Male"
+  ) |>
+  tidyr::drop_na(titerincrease, prevactiter, postvactiter)
+```
+
+Training/testing split and resampling.
+
+```{r}
+set.seed(123)
+split <- initial_split(dat, prop = 2/3, strata = titerincrease)
+train <- training(split)
+test <- testing(split)
+resamples <- vfold_cv(train, v = 5, repeats = 5, strata = titerincrease)
+```
+
+
+Next create model specs.
+
+```{r}
+linear_spec <- linear_reg() |>
+  set_mode("regression") |>
+  set_engine("lm")
+
+en_spec <- linear_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("regression") |>
+  set_engine("glmnet")
+
+lasso_spec <- linear_reg(penalty = tune(), mixture = 1) |>
+  set_mode("regression") |>
+  set_engine("glmnet")
+
+ridge_spec <- linear_reg(penalty = tune(), mixture = 0) |>
+  set_mode("regression") |>
+  set_engine("glmnet")
+
+relaxed_en_spec <- linear_reg(penalty = tune(), mixture = tune()) |>
+  set_mode("regression") |>
+  set_engine("glmnet", relax = TRUE)
+```
+
+Create grids to tune over.
+
+```{r}
+penalty_grid <- tibble(penalty = 10 ^ seq(-9, 0, 1))
+en_grid <- expand_grid(
+  penalty = 10 ^ seq(-9, 0, 1),
+  mixture = seq(0, 1, 0.1)
+)
+```
+
+Define metric set.
+
+```{r}
+my_met <- yardstick::metric_set(
+  huber_loss, mae, rmse
+)
+```
+
+# Null model
+
+First we will calibrate our expectrations by calculating the prediction metrics on the null model. That is, we will assume
+
+$$\hat{y} = \bar{y}.$$
+
+```{r}
+train |>
+  mutate(.pred = mean(titerincrease)) |>
+  my_met(truth = titerincrease, estimate = .pred) |>
+  transmute(
+    metric = gsub("_", " ", .metric),
+    estimate = sprintf("%.2f", .estimate)
+  ) |>
+  gt::gt(caption = "Null model performance")
+```
+
+# Linear model without regularization
+
+Next we can fit a linear model without regularization to see if this performs any better than the null model.
+
+```{r}
+lin_wf <- workflow() |>
+  add_formula(titerincrease ~ age + white + male + dose + strain_type +
+                season + prevactiter + times_vaccinated + homologous) |>
+  add_model(linear_spec)
+
+lin_cv_fit <- lin_wf |>
+  fit_resamples(
+    resamples = resamples,
+    metrics = my_met,
+    control = control_resamples(verbose = TRUE, save_pred = TRUE)
+  )
+
+lin_cv_fit |>
+  collect_metrics() |>
+  transmute(
+    metric = gsub("_", " ", .metric),
+    estimate = sprintf("%.2f", mean),
+    SE = sprintf("%.4f", std_err)
+  ) |>
+  gt::gt(caption = "No regularization model performance")
+```
+
+It appears that our model does have some amount of predictive power, which is good. The cross-validated performance metrics are better than the null model, which is always a nice sign.
+
+Next let's try pre-specifying all second-order interaction terms to see if we can still improve the cross-validated performance.
+
+```{r}
+lin_int2_wf <- workflow() |>
+  add_formula(titerincrease ~ (age + white + male + dose + strain_type +
+                season + prevactiter + times_vaccinated + homologous)^2) |>
+  add_model(linear_spec)
+
+lin_int_2cv_fit <- lin_int2_wf |>
+  fit_resamples(
+    resamples = resamples,
+    metrics = my_met,
+    control = control_resamples(verbose = TRUE, save_pred = TRUE)
+  )
+
+lin_int_2cv_fit |>
+  collect_metrics() |>
+  transmute(
+    metric = gsub("_", " ", .metric),
+    estimate = sprintf("%.2f", mean),
+    SE = sprintf("%.4f", std_err)
+  ) |>
+  gt::gt(caption = "No regularization model performance with second-order interaction terms.")
+```
+
+Note that this fit is rank-deficient, so many of these interaction terms are likely to be useless. A model that is probably more fitting is prespecifying interactions with DOSE, not between all parameters.
+
+```{r}
+lin_intdose_wf <- workflow() |>
+  add_formula(titerincrease ~ dose * (age + white + male + strain_type +
+                season + prevactiter + times_vaccinated + homologous)) |>
+  add_model(linear_spec)
+
+lin_intdose_cv_fit <- lin_intdose_wf |>
+  fit_resamples(
+    resamples = resamples,
+    metrics = my_met,
+    control = control_resamples(verbose = TRUE, save_pred = TRUE)
+  )
+
+lin_intdose_cv_fit |>
+  collect_metrics() |>
+  transmute(
+    metric = gsub("_", " ", .metric),
+    estimate = sprintf("%.2f", mean),
+    SE = sprintf("%.4f", std_err)
+  ) |>
+  gt::gt(caption = "No regularization model performance with dose interaction terms.")
+```
+
+Even on the cross-validated sample, this performs less well--but the model here is not rank-deficient, so these metrics are likely to be more reliable (we should not necessary trust the predictions from a rank-deficient linear model).
+
+Now let's fit models using regularization to see if this can improve cross-validated performance.
+
+# Regularized models with no interaction terms
+
+Create preprocessing recipe. First we will try fitting the models with no interaction terms.
+
+```{r}
+my_rec <-
+  recipe(
+    titerincrease ~ age + white + male + dose + strain_type + season +
+      prevactiter + times_vaccinated + homologous,
+    data = train
+  ) |>
+  step_dummy(all_nominal_predictors())
+```
+
+Next we can create a workflow set to tune all four 
+
+## Tune the models
+
+### Lasso
+
+```{r}
+lasso_wf <- workflow() |>
+  add_recipe(my_rec) |>
+  add_model(lasso_spec)
+
+lasso_res <- lasso_wf |>
+  tune_grid(
+    resamples = resamples,
+    grid = penalty_grid,
+    metrics = my_met,
+    control = control_grid(verbose = TRUE, save_pred = TRUE)
+  )
+
+lasso_sa <- lasso_wf |>
+  tune_sim_anneal(
+    resamples = resamples,
+    iter = 10,
+    metrics = my_met,
+    initial = lasso_res,
+    control = control_sim_anneal(verbose = TRUE)
+  )
+
+best_lasso <- lasso_sa |>
+  select_best("rmse")
+
+best_lasso_wf <- lasso_wf |>
+  finalize_workflow(best_lasso)
+
+lasso_train_fit <- best_lasso_wf |>
+  fit(train)
+```
+
